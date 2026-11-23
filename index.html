@@ -137,64 +137,77 @@ function animate(){
 </script>
 <!-- MOBILE CONTROL START -->
 <style>
-#mobileControls{position:fixed;bottom:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;display:none}
-#joyBase{position:absolute;left:20px;bottom:90px;width:120px;height:120px;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.6);border-radius:50%;pointer-events:auto}
-#joyKnob{position:absolute;left:35px;top:35px;width:50px;height:50px;background:rgba(255,255,255,0.9);border-radius:50%}
-.mobBtn{position:absolute;pointer-events:auto;border:none;border-radius:50%;color:white;font-weight:bold;opacity:0.9}
-#btnJump{right:20px;bottom:180px;width:70px;height:70px;background:#ff4757;font-size:14px}
-#btnRun{right:100px;bottom:100px;width:60px;height:60px;background:#ffa502;font-size:12px}
-#btnCar{right:20px;bottom:90px;width:70px;height:70px;background:#2ed573;font-size:11px}
-@media (pointer:coarse){ #mobileControls{display:block} }
+#mobileControls{position:fixed;inset:0;pointer-events:none;z-index:9999;display:none}
+#joyBase{position:absolute;left:20px;bottom:100px;width:120px;height:120px;background:rgba(255,255,255,.25);border:2px solid #fff;border-radius:50%;pointer-events:auto}
+#joyKnob{position:absolute;left:35px;top:35px;width:50px;height:50px;background:#fff;border-radius:50%}
+.mobBtn{position:absolute;pointer-events:auto;border:none;border-radius:50%;color:#fff;font-weight:bold}
+#btnJump{right:20px;bottom:190px;width:70px;height:70px;background:#ff4757}
+#btnRun{right:100px;bottom:100px;width:60px;height:60px;background:#ffa502}
+#btnCar{right:20px;bottom:90px;width:70px;height:70px;background:#2ed573}
+@media (pointer:coarse){#mobileControls{display:block}}
 </style>
-
 <div id="mobileControls">
-  <div id="joyBase"><div id="joyKnob"></div></div>
-  <button class="mobBtn" id="btnJump">JUMP</button>
-  <button class="mobBtn" id="btnRun">RUN</button>
-  <button class="mobBtn" id="btnCar">GARI</button>
+<div id="joyBase"><div id="joyKnob"></div></div>
+<button class="mobBtn" id="btnJump">JUMP</button>
+<button class="mobBtn" id="btnRun">RUN</button>
+<button class="mobBtn" id="btnCar">GARI</button>
 </div>
-
 <script>
-function pressKey(code, down){
-  let e = new KeyboardEvent(down?'keydown':'keyup', {code:code, key:code.replace('Key','').toLowerCase(), bubbles:true});
-  // tor game jodi 'KeyW' diye check kore
-  window.dispatchEvent(e); document.dispatchEvent(e);
-  // jodi game keys[] object use kore
-  if(window.keys) window.keys[code]=down;
-  if(window.keys) window.keys[code.toLowerCase()]=down;
-}
-// Joystick
 let joyBase=document.getElementById('joyBase');
 let joyKnob=document.getElementById('joyKnob');
-let joyActive=false, lastKeys=[];
-function clearJoy(){ ['KeyW','KeyA','KeyS','KeyD'].forEach(k=>pressKey(k,false)); lastKeys=[]; joyKnob.style.left='35px'; joyKnob.style.top='35px'; }
-joyBase.addEventListener('touchstart',e=>{joyActive=true; e.preventDefault();},{passive:false});
-joyBase.addEventListener('touchmove',e=>{
-  e.preventDefault();
-  let t=e.touches[0];
-  let r=joyBase.getBoundingClientRect();
-  let dx=t.clientX-(r.left+r.width/2);
-  let dy=t.clientY-(r.top+r.height/2);
-  dx=Math.max(-40,Math.min(40,dx)); dy=Math.max(-40,Math.min(40,dy));
-  joyKnob.style.left=(35+dx)+'px'; joyKnob.style.top=(35+dy)+'px';
-  clearJoy();
-  if(dy<-15) pressKey('KeyW',true);
-  if(dy>15) pressKey('KeyS',true);
-  if(dx<-15) pressKey('KeyA',true);
-  if(dx>15) pressKey('KeyD',true);
-},{passive:false});
-joyBase.addEventListener('touchend',()=>{joyActive=false; clearJoy();});
-
-function bindBtn(id, code){
-  let b=document.getElementById(id);
-  b.addEventListener('touchstart',e=>{e.preventDefault(); pressKey(code,true);},{passive:false});
-  b.addEventListener('touchend',e=>{e.preventDefault(); pressKey(code,false);},{passive:false});
+function setK(k,v){
+  try{ if(typeof keys!=='undefined') keys[k]=v; }catch(e){}
+  try{ window.keys[k]=v; }catch(e){}
+  // asol keyboard er moto signal pathano - etai Jump/Run ke chalabe
+  let ev = new KeyboardEvent(v?'keydown':'keyup',{key:k, code:k===' '?'Space':k==='shift'?'ShiftLeft':'Key'+k.toUpperCase(), bubbles:true});
+  window.dispatchEvent(ev); document.dispatchEvent(ev);
 }
-bindBtn('btnJump','Space');
-bindBtn('btnRun','ShiftLeft');
-bindBtn('btnCar','KeyE');
+function clearJoy(){ setK('w',false); setK('a',false); setK('s',false); setK('d',false); joyKnob.style.left='35px'; joyKnob.style.top='35px'; }
+joyBase.addEventListener('touchstart',e=>{e.preventDefault(); e.stopPropagation();},{passive:false});
+joyBase.addEventListener('touchmove',e=>{
+ e.preventDefault(); e.stopPropagation();
+ let t=e.touches[0]; let r=joyBase.getBoundingClientRect();
+ let dx=t.clientX-(r.left+r.width/2); let dy=t.clientY-(r.top+r.height/2);
+ dx=Math.max(-40,Math.min(40,dx)); dy=Math.max(-40,Math.min(40,dy));
+ joyKnob.style.left=(35+dx)+'px'; joyKnob.style.top=(35+dy)+'px';
+ // ager key gulo chara notun kore deya
+ if(typeof keys!=='undefined'){ keys['w']=false; keys['a']=false; keys['s']=false; keys['d']=false; }
+ if(dy<-15) setK('w',true);
+ if(dy>15) setK('s',true);
+ if(dx<-15) setK('a',true);
+ if(dx>15) setK('d',true);
+},{passive:false});
+joyBase.addEventListener('touchend',()=>{clearJoy()});
+
+let bJ=document.getElementById('btnJump');
+bJ.addEventListener('touchstart',e=>{e.preventDefault(); e.stopPropagation(); setK(' ',true)},{passive:false});
+bJ.addEventListener('touchend',e=>{e.preventDefault(); setK(' ',false)},{passive:false});
+let bR=document.getElementById('btnRun');
+bR.addEventListener('touchstart',e=>{e.preventDefault(); e.stopPropagation(); setK('shift',true)},{passive:false});
+bR.addEventListener('touchend',e=>{e.preventDefault(); setK('shift',false)},{passive:false});
+let bC=document.getElementById('btnCar');
+bC.addEventListener('touchstart',e=>{e.preventDefault(); e.stopPropagation(); if(typeof toggleCar==='function') toggleCar();},{passive:false});
+
+// CAMERA GHORANO - Dan diker faka jaygay angul diye ghosle camera ghurbe
+let lastX=null;
+document.addEventListener('touchstart',e=>{
+  if(e.target.closest('#joyBase')||e.target.closest('.mobBtn')) return;
+  if(e.touches.length>0) lastX=e.touches[0].clientX;
+},{passive:true});
+document.addEventListener('touchmove',e=>{
+  if(e.target.closest('#joyBase')||e.target.closest('.mobBtn')) return;
+  if(lastX===null) return;
+  let x=e.touches[0].clientX;
+  let diff=x-lastX;
+  lastX=x;
+  if(typeof camAngle!=='undefined'){ camAngle -= diff*0.01; }
+  if(typeof window.camAngle!=='undefined'){ window.camAngle -= diff*0.005; }
+},{passive:true});
+document.addEventListener('touchend',()=>{lastX=null});
 </script>
 <!-- MOBILE CONTROL END -->
+
 </body>
 </html>
+
 
