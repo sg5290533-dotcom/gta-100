@@ -135,5 +135,66 @@ function animate(){
   renderer.render(scene,camera);
 }
 </script>
+<!-- MOBILE CONTROL START -->
+<style>
+#mobileControls{position:fixed;bottom:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;display:none}
+#joyBase{position:absolute;left:20px;bottom:90px;width:120px;height:120px;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.6);border-radius:50%;pointer-events:auto}
+#joyKnob{position:absolute;left:35px;top:35px;width:50px;height:50px;background:rgba(255,255,255,0.9);border-radius:50%}
+.mobBtn{position:absolute;pointer-events:auto;border:none;border-radius:50%;color:white;font-weight:bold;opacity:0.9}
+#btnJump{right:20px;bottom:180px;width:70px;height:70px;background:#ff4757;font-size:14px}
+#btnRun{right:100px;bottom:100px;width:60px;height:60px;background:#ffa502;font-size:12px}
+#btnCar{right:20px;bottom:90px;width:70px;height:70px;background:#2ed573;font-size:11px}
+@media (pointer:coarse){ #mobileControls{display:block} }
+</style>
+
+<div id="mobileControls">
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <button class="mobBtn" id="btnJump">JUMP</button>
+  <button class="mobBtn" id="btnRun">RUN</button>
+  <button class="mobBtn" id="btnCar">GARI</button>
+</div>
+
+<script>
+function pressKey(code, down){
+  let e = new KeyboardEvent(down?'keydown':'keyup', {code:code, key:code.replace('Key','').toLowerCase(), bubbles:true});
+  // tor game jodi 'KeyW' diye check kore
+  window.dispatchEvent(e); document.dispatchEvent(e);
+  // jodi game keys[] object use kore
+  if(window.keys) window.keys[code]=down;
+  if(window.keys) window.keys[code.toLowerCase()]=down;
+}
+// Joystick
+let joyBase=document.getElementById('joyBase');
+let joyKnob=document.getElementById('joyKnob');
+let joyActive=false, lastKeys=[];
+function clearJoy(){ ['KeyW','KeyA','KeyS','KeyD'].forEach(k=>pressKey(k,false)); lastKeys=[]; joyKnob.style.left='35px'; joyKnob.style.top='35px'; }
+joyBase.addEventListener('touchstart',e=>{joyActive=true; e.preventDefault();},{passive:false});
+joyBase.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  let t=e.touches[0];
+  let r=joyBase.getBoundingClientRect();
+  let dx=t.clientX-(r.left+r.width/2);
+  let dy=t.clientY-(r.top+r.height/2);
+  dx=Math.max(-40,Math.min(40,dx)); dy=Math.max(-40,Math.min(40,dy));
+  joyKnob.style.left=(35+dx)+'px'; joyKnob.style.top=(35+dy)+'px';
+  clearJoy();
+  if(dy<-15) pressKey('KeyW',true);
+  if(dy>15) pressKey('KeyS',true);
+  if(dx<-15) pressKey('KeyA',true);
+  if(dx>15) pressKey('KeyD',true);
+},{passive:false});
+joyBase.addEventListener('touchend',()=>{joyActive=false; clearJoy();});
+
+function bindBtn(id, code){
+  let b=document.getElementById(id);
+  b.addEventListener('touchstart',e=>{e.preventDefault(); pressKey(code,true);},{passive:false});
+  b.addEventListener('touchend',e=>{e.preventDefault(); pressKey(code,false);},{passive:false});
+}
+bindBtn('btnJump','Space');
+bindBtn('btnRun','ShiftLeft');
+bindBtn('btnCar','KeyE');
+</script>
+<!-- MOBILE CONTROL END -->
 </body>
 </html>
+
