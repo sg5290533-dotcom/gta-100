@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>VICE CITY - TOMAR PIC ER MANUSH</title>
+<style>
+ *{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
+ body{overflow:hidden;background:#000;color:#fff}
+ #select{position:fixed;inset:0;background:linear-gradient(180deg,#ff2e88,#7b00ff);z-index:20;display:flex;flex-direction:column;align-items:center;padding:15px;overflow-y:auto}
+ #select h1{font-size:34px;text-shadow:3px 3px 0 #000;text-align:center}
+ #chars{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:1000px;margin-top:12px}
+ .card{background:rgba(0,0,0,.6);border:4px solid rgba(255,255,255,.3);border-radius:16px;padding:10px;width:155px;text-align:center;cursor:pointer}
+ .card.sel{border-color:#00ff88;background:rgba(0,255,136,.3)}
+ .face{width:90px;height:120px;border-radius:12px;object-fit:cover;border:3px solid #fff;background:#ddd}
+ .upBtn{background:#fff;color:#000;border:none;padding:6px 10px;border-radius:20px;font-weight:bold;font-size:12px;cursor:pointer;margin-top:6px}
+ #playBtn{margin-top:18px;background:#ffe600;color:#000;border:none;padding:16px 50px;font-size:24px;font-weight:900;border-radius:30px;cursor:pointer}
+ #hud{position:fixed;top:12px;left:12px;z-index:10;background:rgba(0,0,0,.7);padding:12px 16px;border-radius:12px;display:none;line-height:1.6}
+ #ctrl{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);padding:8px 16px;border-radius:20px;font-size:13px;z-index:10;display:none;white-space:nowrap}
+ #carBtn{position:fixed;bottom:60px;right:15px;background:#ff2e88;color:#fff;border:none;padding:12px 18px;border-radius:12px;font-weight:bold;z-index:10;display:none;cursor:pointer}
+ #status{font-size:13px;margin-top:8px;background:rgba(0,0,0,.5);padding:8px 12px;border-radius:10px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<div id="select">
+  <h1>VICE CITY - TOMAR PIC ER MANUSH</h1>
+  <p>Pic er jama, hat, paa, mukh - sob same thakbe. Pic ghurbe na, manus ghurbe.</p>
+  <div id="chars"></div>
+  <button id="playBtn" onclick="startGame()">▶ PLAY REAL GAME</button>
+  <div id="status">characters folder e pic khujchi... PNG hole besi valo lagbe</div>
+</div>
+<div id="hud">🎮 <b id="pName">Player 1</b><br>💰 Cash: $<span id="cash">0</span><br>🚶 9 jon tomader pic er manus ghurche</div>
+<div id="ctrl">WASD = Hata | SHIFT = Dourano | SPACE = Jump | E = Gari | Mouse Drag = Camera</div>
+<button id="carBtn" onclick="toggleCar()">🚗 ENTER CAR (E)</button>
+<canvas id="c"></canvas>
+<script>
+let names=["Player 1","Player 2","Player 3","Player 4","Player 5","Player 6","Player 7","Player 8","Player 9","Player 10"];
+let selected=0, started=false, keys={}, cash=0, inCar=false;
+let foundSrc=["","","","","","","","","",""];
+let uploaded=[null,null,null,null,null,null,null,null,null,null];
+function tryNames(i,cb){
+  // PNG AGE - karon background kata pic PNG hoy, otai sobcheye real lagbe
+  let tries=[`characters/Character${i+1}.png`,`characters/character${i+1}.png`,`characters/Character${i+1}.jpg`,`characters/character${i+1}.jpg`,`characters/Character${i+1}.jpeg`,`characters/character${i+1}.jpeg`,`Character${i+1}.png`,`Character${i+1}.jpg`,`character${i+1}.jpg`];
+  let idx=0; function next(){ if(idx>=tries.length){cb(null);return;} let img=new Image(); img.onload=()=>cb(tries[idx]); img.onerror=()=>{idx++;next();}; img.src=tries[idx]; } next();
+}
+let charsDiv=document.getElementById('chars');
+names.forEach((n,i)=>{
+  let d=document.createElement('div'); d.className='card'+(i==0?' sel':'');
+  d.innerHTML=`<img class="face" id="face${i}" src="https://api.dicebear.com/7.x/personas/svg?seed=${n}"><br><b>${n}</b><br><input type="file" id="file${i}" accept="image/*" style="display:none"><button class="upBtn" onclick="event.stopPropagation();document.getElementById('file${i}').click()">📸 Pic Dao</button>`;
+  d.onclick=()=>pick(i,d); charsDiv.appendChild(d);
+  tryNames(i,(src)=>{ if(src){foundSrc[i]=src; document.getElementById('face'+i).src=src;} let f=foundSrc.filter(s=>s!="").length; document.getElementById('status').innerText=`✅ ${f}/10 ta pic peye gechi! PNG hole background kata lagbe`; });
+  document.getElementById('file'+i).onchange=(e)=>{ let f=e.target.files[0]; if(!f) return; let url=URL.createObjectURL(f); uploaded[i]=url; foundSrc[i]=url; document.getElementById('face'+i).src=url; };
+});
+function pick(i,el){ selected=i; document.querySelectorAll('.card').forEach(c=>c.classList.remove('sel')); el.classList.add('sel'); document.getElementById('pName').innerText=names[i]; }
+let scene,camera,renderer,player,npcs=[],cars=[],camAngle=0,currentCar=null,jumpY=0,jumpV=0,moneys=[];
+
+// ===== TOMAR PIC ER MANUSH - SPRITE, SOBSOMOY CAMERA ER DIKE =====
+// Eta ghurbe na, pic ta ulto hobe na. Hatar somoy up-niche dolbe, manus er moto.
+function makePerson(i,x,z,isPlayer){
+  let g=new THREE.Group();
+  let src=uploaded[i]?uploaded[i]:(foundSrc[i]?foundSrc[i]:`characters/Character${i+1}.jpg`);
+  let tex=new THREE.TextureLoader().load(src);
+  tex.encoding=THREE.sRGBEncoding;
+  // Sprite = sobsomoy camera er dike takiye thake, tai pic gora-guri korbe na
+  let mat=new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false});
+  let spr=new THREE.Sprite(mat);
+  spr.scale.set(1.6, 3.2, 1); // Manus er height er moto
+  spr.position.y=1.6;
+  g.add(spr);
+  // Chaya
+  let shadow=new THREE.Mesh(new THREE.CircleGeometry(0.7,24), new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.3}));
+  shadow.rotation.x=-Math.PI/2; shadow.position.y=0.02; g.add(shadow);
+  if(isPlayer){
+    let r=new THREE.Mesh(new THREE.RingGeometry(0.7,0.9,32), new THREE.MeshBasicMaterial({color:0x00ff88, side:THREE.DoubleSide, transparent:true, opacity:0.9}));
+    r.rotation.x=-Math.PI/2; r.position.y=0.03; g.add(r);
+    let cv=document.createElement('canvas'); cv.width=256; cv.height=64; let ctx=cv.getContext('2d'); ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,256,64); ctx.fillStyle='#00ff88'; ctx.font='bold 32px Arial'; ctx.textAlign='center'; ctx.fillText(names[i],128,42);
+    let plate=new THREE.Mesh(new THREE.PlaneGeometry(1.1,0.28), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv), transparent:true, side:THREE.DoubleSide})); plate.position.y=3.5; g.add(plate); g.userData.plate=plate;
+  }
+  g.position.set(x,0,z);
+  g.userData={i,spr,walk:Math.random()*5,tx:x,tz:z,plate:g.userData.plate};
+  scene.add(g); return g;
+}
+function startGame(){
+  if(typeof THREE==='undefined'){ alert("Internet nei! Wifi ON kore Ctrl+Shift+R chapo"); return; }
+  document.getElementById('select').style.display='none';
+  document.getElementById('hud').style.display='block'; document.getElementById('ctrl').style.display='block'; document.getElementById('carBtn').style.display='block';
+  started=true;
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0x87ceeb); scene.fog=new THREE.Fog(0x87ceeb,40,140);
+  camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,500);
+  renderer=new THREE.WebGLRenderer({canvas:document.getElementById('c'),antialias:true}); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true;
+  let light=new THREE.DirectionalLight(0xffffff,1.1); light.position.set(20,50,20); light.castShadow=true; scene.add(light); scene.add(new THREE.AmbientLight(0xffffff,0.65));
+  let ground=new THREE.Mesh(new THREE.PlaneGeometry(220,220),new THREE.MeshLambertMaterial({color:0x2d5a2d})); ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+  let roadMat=new THREE.MeshLambertMaterial({color:0x333333});
+  let r1=new THREE.Mesh(new THREE.PlaneGeometry(220,11),roadMat); r1.rotation.x=-Math.PI/2; r1.position.y=0.02; scene.add(r1);
+  let r2=new THREE.Mesh(new THREE.PlaneGeometry(11,220),roadMat); r2.rotation.x=-Math.PI/2; r2.position.y=0.02; scene.add(r2);
+  for(let i=-100;i<100;i+=6){ let d=new THREE.Mesh(new THREE.PlaneGeometry(2.5,0.3),new THREE.MeshBasicMaterial({color:0xffffff})); d.rotation.x=-Math.PI/2; d.position.set(i,0.03,0); scene.add(d); }
+  for(let i=0;i<32;i++){ let w=7+Math.random()*6,h=7+Math.random()*20,d=7+Math.random()*6; let x=(Math.random()-0.5)*180,z=(Math.random()-0.5)*180; if(Math.abs(x)<14||Math.abs(z)<14) continue; let b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:[0x3a3a3a,0x4a2c5a,0x1e3a5a,0x5a3a1e,0x666666][i%5]})); b.position.set(x,h/2,z); b.castShadow=true; scene.add(b); }
+  for(let i=0;i<5;i++){ let car=new THREE.Group(); let bodyC=new THREE.Mesh(new THREE.BoxGeometry(3.4,1.1,1.8),new THREE.MeshLambertMaterial({color:[0xff0000,0x00aaff,0xffe600,0xffffff,0xff00ff][i%5]})); bodyC.position.y=0.8; let top=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.8,1.5),new THREE.MeshLambertMaterial({color:0x111111})); top.position.y=1.7; car.add(bodyC,top); let wg=new THREE.CylinderGeometry(0.4,0.4,0.25,16); wg.rotateZ(Math.PI/2); [-1.2,1.2].forEach(x=>[-0.9,0.9].forEach(z=>{ let w=new THREE.Mesh(wg,new THREE.MeshLambertMaterial({color:0x000000})); w.position.set(x,0.4,z); car.add(w); })); car.position.set(-50+i*22,0,4); car.userData={speed:0.06,dir:1}; scene.add(car); cars.push(car); }
+  for(let i=0;i<8;i++){ let m=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,0.2,16),new THREE.MeshLambertMaterial({color:0xffd700})); m.position.set((Math.random()-0.5)*80,0.6,(Math.random()-0.5)*80); scene.add(m); moneys.push(m); }
+  player=makePerson(selected,0,9,true); npcs=[];
+  for(let i=0;i<10;i++){ if(i==selected) continue; npcs.push(makePerson(i,(Math.random()-0.5)*60,(Math.random()-0.5)*60,false)); }
+  addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(e.key.toLowerCase()=='e') toggleCar();});
+  addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+  let down=false,lastX=0; addEventListener('mousedown',e=>{down=true;lastX=e.clientX}); addEventListener('mouseup',()=>down=false); addEventListener('mousemove',e=>{if(down) camAngle+=(e.clientX-lastX)*0.01; lastX=e.clientX;});
+  animate();
+}
+function toggleCar(){ if(!started) return; if(!inCar){ let near=null,dist=99; cars.forEach(c=>{ let d=Math.hypot(c.position.x-player.position.x,c.position.z-player.position.z); if(d<dist){dist=d;near=c;} }); if(near&&dist<4){ inCar=true; currentCar=near; player.visible=false; document.getElementById('carBtn').innerText='🚶 EXIT CAR (E)'; } } else { inCar=false; player.visible=true; player.position.set(currentCar.position.x+2,0,currentCar.position.z+2); currentCar=null; document.getElementById('carBtn').innerText='🚗 ENTER CAR (E)'; } }
+function walkAnim(g,moving){
+  if(moving){
+    g.userData.walk+=0.22;
+    // Hatar moto halka dolbe, paa felar moto
+    let b=Math.abs(Math.sin(g.userData.walk))*0.08;
+    g.userData.spr.position.y=1.6+b;
+    g.userData.spr.scale.set(1.6+Math.sin(g.userData.walk)*0.03, 3.2, 1);
+  } else { g.userData.spr.position.y=1.6; }
+}
+function animate(){
+  requestAnimationFrame(animate); if(!started) return;
+  let dx=0,dz=0; if(keys['w']||keys['arrowup']) dz=-1; if(keys['s']||keys['arrowdown']) dz=1; if(keys['a']||keys['arrowleft']) dx=-1; if(keys['d']||keys['arrowright']) dx=1;
+  if(inCar && currentCar){
+    let sp=0.35; currentCar.position.x+=Math.sin(camAngle)*-dz*sp + Math.cos(camAngle)*dx*sp; currentCar.position.z+=Math.cos(camAngle)*-dz*sp + Math.sin(camAngle)*dx*sp;
+    if(dx||dz) currentCar.rotation.y=Math.atan2(Math.sin(camAngle)*-dz+Math.cos(camAngle)*dx, Math.cos(camAngle)*-dz+Math.sin(camAngle)*dx);
+    camera.position.set(currentCar.position.x+Math.sin(camAngle)*9,5,currentCar.position.z+Math.cos(camAngle)*9); camera.lookAt(currentCar.position.x,1.5,currentCar.position.z);
+  } else {
+    let speed=keys['shift']?0.22:0.12; let sin=Math.sin(camAngle),cos=Math.cos(camAngle); let mx=(dx*cos-dz*sin)*speed, mz=(dx*sin+dz*cos)*speed;
+    player.position.x+=mx; player.position.z+=mz;
+    if(dx||dz) walkAnim(player,true); else walkAnim(player,false);
+    if(keys[' ']&&jumpY==0) jumpV=0.2; if(jumpY>0||jumpV>0){ jumpY+=jumpV; jumpV-=0.012; if(jumpY<=0){jumpY=0;jumpV=0;} }
+    player.position.y=jumpY;
+    // Camera pichon theke, manus ta samne
+    camera.position.set(player.position.x+Math.sin(camAngle)*9,5+jumpY*0.5,player.position.z+Math.cos(camAngle)*9); camera.lookAt(player.position.x,1.6,player.position.z);
+  }
+  npcs.forEach(n=>{ if(Math.random()<0.01){n.userData.tx=n.position.x+(Math.random()-0.5)*40; n.userData.tz=n.position.z+(Math.random()-0.5)*40;} let nx=n.userData.tx-n.position.x,nz=n.userData.tz-n.position.z,d=Math.hypot(nx,nz); if(d>1){n.position.x+=nx/d*0.05; n.position.z+=nz/d*0.05; walkAnim(n,true);} else walkAnim(n,false); });
+  moneys.forEach((m,i)=>{ m.rotation.y+=0.05; if(!inCar && Math.hypot(m.position.x-player.position.x,m.position.z-player.position.z)<1.5){ scene.remove(m); moneys.splice(i,1); cash+=100; document.getElementById('cash').innerText=cash; } });
+  renderer.render(scene,camera);
+}
+</script>
+</body>
+</html>
